@@ -13,20 +13,20 @@ jobs:
       - name: 📥 Checkout repository
         uses: actions/checkout@v3
 
-      - name: 🔧 Install jq (if not present)
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: 🔧 Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
 
       - name: 🧾 Create PR log entry JSON file
         run: |
-          cat <<EOF > pr-entry.json
-{
-  "number": ${{ github.event.pull_request.number }},
-  "title": "${{ github.event.pull_request.title }}",
-  "author": "${{ github.event.pull_request.user.login }}",
-  "branch": "${{ github.event.pull_request.head.ref }}",
-  "merged_at": "${{ github.event.pull_request.merged_at }}"
-}
-EOF
+          echo '{
+            "number": '${{ github.event.pull_request.number }}',
+            "title": "${{ github.event.pull_request.title }}",
+            "author": "${{ github.event.pull_request.user.login }}",
+            "branch": "${{ github.event.pull_request.head.ref }}",
+            "merged_at": "${{ github.event.pull_request.merged_at }}"
+          }' > pr-entry.json
 
       - name: 🧩 Merge with existing PR log
         run: |
@@ -34,7 +34,6 @@ EOF
           if [ ! -f "$FILE" ]; then
             echo "[]" > $FILE
           fi
-
           jq --slurpfile new pr-entry.json '. + $new' $FILE > tmp.json
           mv tmp.json $FILE
 
@@ -45,4 +44,3 @@ EOF
           git add merged-prs.json
           git commit -m "📝 Log merged PR #${{ github.event.pull_request.number }}"
           git push
-
