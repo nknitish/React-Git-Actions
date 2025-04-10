@@ -17,18 +17,12 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 18
-          cache: 'pnpm'
 
-      - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9.0.0
-          run_install: false
-
-      - name: 🔧 Add pnpm to PATH manually (fallback)
+      - name: 📦 Enable and Install pnpm
         run: |
           corepack enable
           corepack prepare pnpm@9.0.0 --activate
+          pnpm --version
 
       - name: 🧩 Install dependencies
         run: pnpm install
