@@ -19,7 +19,7 @@ jobs:
           username: ${{ secrets.EMAIL_USER }}
           password: ${{ secrets.EMAIL_PASSWORD }}
           subject: "✅ PR #${{ github.event.pull_request.number }} merged into main!"
-          to: your-email@gmail.com
+          to: nknitish111@gmail.com
           from: GitHub PR Bot <your-email@gmail.com>
           body: |
             A new PR was merged into main:
