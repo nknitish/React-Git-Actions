@@ -1,0 +1,33 @@
+name: Email on PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  notify-email:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📧 Send email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "✅ PR #${{ github.event.pull_request.number }} merged into main!"
+          to: your-email@gmail.com
+          from: GitHub PR Bot <your-email@gmail.com>
+          body: |
+            A new PR was merged into main:
+            
+            🔢 PR Number: #${{ github.event.pull_request.number }}
+            📝 Title: ${{ github.event.pull_request.title }}
+            🧑‍💻 Author: ${{ github.event.pull_request.user.login }}
+            🌿 Branch: ${{ github.event.pull_request.head.ref }}
+            ⏱️ Merged At: ${{ github.event.pull_request.merged_at }}
+
+            🔗 View PR: ${{ github.event.pull_request.html_url }}
