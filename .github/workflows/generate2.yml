@@ -1,0 +1,82 @@
+name: Generate Release 2
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Select the target branch'
+        required: true
+        default: 'main'
+        type: string
+
+env:
+  TZ: America/Phoenix
+
+jobs:
+  generate-release-notes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.target_branch }}
+
+      - name: Set Report Date Time
+        id: datetime
+        run: echo "DATESTAMP=$(date +"%Y-%m-%d")" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch merged PRs
+        id: fetch_prs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = '${{ github.event.inputs.target_branch }}';
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              base: branch,
+              per_page: 100
+            });
+
+            const mergedPRs = prs.filter(pr => pr.merged_at);
+            const formatted = mergedPRs.map(pr => ({
+              number: pr.number,
+              title: pr.title,
+              user: pr.user.login,
+              merged_at: pr.merged_at,
+              html_url: pr.html_url,
+              issue_key: pr.title.match(/NCX-\d+/)?.[0] ?? ''
+            }));
+
+            core.setOutput("pr_data", JSON.stringify(formatted));
+
+      - name: Generate Release Notes File
+        id: release_notes
+        run: |
+          mkdir -p release-notes
+          FILE="release-notes/release-notes-${{ github.event.inputs.target_branch }}-${{ steps.datetime.outputs.DATESTAMP }}.md"
+
+          echo "# 📄 Release Notes - ${{ steps.datetime.outputs.DATESTAMP }}" >> $FILE
+          echo "Target Branch: \`${{ github.event.inputs.target_branch }}\`" >> $FILE
+          echo "" >> $FILE
+          echo "## 🚀 Merged Pull Requests" >> $FILE
+          echo "| PR | Title | Author | Merged Date | Issue Key |" >> $FILE
+          echo "|----|-------|--------|-------------|-----------|" >> $FILE
+
+          echo '${{ steps.fetch_prs.outputs.pr_data }}' | jq -c '.[]' | while read pr; do
+            NUMBER=$(echo "$pr" | jq -r '.number')
+            TITLE=$(echo "$pr" | jq -r '.title' | sed 's/|/\\|/g')
+            USER=$(echo "$pr" | jq -r '.user')
+            MERGED=$(echo "$pr" | jq -r '.merged_at' | cut -d"T" -f1)
+            URL=$(echo "$pr" | jq -r '.html_url')
+            ISSUE=$(echo "$pr" | jq -r '.issue_key')
+            echo "| [#$NUMBER]($URL) | $TITLE | @$USER | $MERGED | $ISSUE |" >> $FILE
+          done
+
+      - name: Upload release notes as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes/
