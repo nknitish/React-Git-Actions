@@ -25,7 +25,7 @@ jobs:
         env:
           TZ: America/Phoenix
 
-      - name: Generate Basic Release Notes File
+      - name: Generate Release Notes File
         id: release_notes
         run: |
           mkdir -p release-notes
@@ -36,15 +36,12 @@ jobs:
           echo "- 🌿 Branch: ${{ github.event.inputs.target_branch }}" >> $FILE
           echo "" >> $FILE
           echo "## 🚀 Changes" >> $FILE
-          echo "- This is where you would list PRs, features, or fixes." >> $FILE
-          echo "- Example: Added feature X, fixed bug Y, refactored Z." >> $FILE
-          echo "" >> $FILE
-          echo "FILE_PATH=$FILE" >> $GITHUB_OUTPUT
+          echo "- Example: Added feature X" >> $FILE
+          echo "- Example: Fixed bug Y" >> $FILE
 
-      - name: Commit Release Notes to Repo
-        run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "actions@github.com"
-          git add release-notes/
-          git commit -m "📄 Add manual release notes for ${{ github.event.inputs.target_branch }}"
-          git push
+      - name: Upload release notes as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes/
+          
