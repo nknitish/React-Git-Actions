@@ -1,0 +1,50 @@
+name: Generate Release Notes Manually
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Select the target branch'
+        required: true
+        default: 'main'
+        type: string
+
+jobs:
+  generate-release-notes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.target_branch }}
+
+      - name: Set Report Date Time
+        id: datetime
+        run: echo "DATESTAMP=$(date +"%Y-%m-%d")" >> "$GITHUB_OUTPUT"
+        env:
+          TZ: America/Phoenix
+
+      - name: Generate Basic Release Notes File
+        id: release_notes
+        run: |
+          mkdir -p release-notes
+          FILE="release-notes/release-notes-${{ github.event.inputs.target_branch }}-${{ steps.datetime.outputs.DATESTAMP }}.md"
+          echo "# 📄 Release Notes" > $FILE
+          echo "" >> $FILE
+          echo "- 📅 Date: ${{ steps.datetime.outputs.DATESTAMP }}" >> $FILE
+          echo "- 🌿 Branch: ${{ github.event.inputs.target_branch }}" >> $FILE
+          echo "" >> $FILE
+          echo "## 🚀 Changes" >> $FILE
+          echo "- This is where you would list PRs, features, or fixes." >> $FILE
+          echo "- Example: Added feature X, fixed bug Y, refactored Z." >> $FILE
+          echo "" >> $FILE
+          echo "FILE_PATH=$FILE" >> $GITHUB_OUTPUT
+
+      - name: Commit Release Notes to Repo
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add release-notes/
+          git commit -m "📄 Add manual release notes for ${{ github.event.inputs.target_branch }}"
+          git push
