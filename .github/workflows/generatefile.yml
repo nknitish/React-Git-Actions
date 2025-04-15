@@ -1,0 +1,69 @@
+name: Generate Release Notes and Send Email
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  notify-email-and-generate-report:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repo
+        uses: actions/checkout@v4
+
+      - name: Set Date
+        id: datetime
+        run: echo "DATESTAMP=$(date +"%Y-%m-%d")" >> "$GITHUB_OUTPUT"
+        env:
+          TZ: America/Phoenix
+
+      - name: Create release notes file
+        id: create_file
+        run: |
+          mkdir -p release-notes
+          FILE="release-notes/PR-${{ github.event.pull_request.number }}-${{ steps.datetime.outputs.DATESTAMP }}.md"
+          echo "## ✅ PR Merged into Main" > $FILE
+          echo "" >> $FILE
+          echo "**PR Number**: #${{ github.event.pull_request.number }}" >> $FILE
+          echo "**Title**: ${{ github.event.pull_request.title }}" >> $FILE
+          echo "**Author**: ${{ github.event.pull_request.user.login }}" >> $FILE
+          echo "**Source Branch**: ${{ github.event.pull_request.head.ref }}" >> $FILE
+          echo "**Merged At**: ${{ github.event.pull_request.merged_at }}" >> $FILE
+          echo "**Link**: ${{ github.event.pull_request.html_url }}" >> $FILE
+          echo "FILE_PATH=$FILE" >> $GITHUB_OUTPUT
+
+      - name: Commit release notes file
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add release-notes/
+          git commit -m "📄 Add release notes for PR #${{ github.event.pull_request.number }}"
+          git push
+
+      - name: 📧 Send email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "✅ PR #${{ github.event.pull_request.number }} merged into main!"
+          to: nknitish111@gmail.com
+          from: GitHub PR Bot <your-email@gmail.com>
+          body: |
+            A new PR was merged into main:
+
+            🔢 PR Number: #${{ github.event.pull_request.number }}
+            📝 Title: ${{ github.event.pull_request.title }}
+            🧑‍💻 Author: ${{ github.event.pull_request.user.login }}
+            🌿 Branch: ${{ github.event.pull_request.head.ref }}
+            ⏱️ Merged At : ${{ github.event.pull_request.merged_at }}
+
+            🔗 View PR: ${{ github.event.pull_request.html_url }}
+
+            📄 A release notes file was generated and committed to the repo in `release-notes/`.
+
+          attachments: ${{ steps.create_file.outputs.FILE_PATH }}
