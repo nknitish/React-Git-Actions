@@ -1,0 +1,26 @@
+- name: Generate 4
+  run: |
+    echo "# 📦 Release Notes - ${{ steps.datetime.outputs.DATESTAMP }}" >> $GITHUB_STEP_SUMMARY
+    echo "Target Branch: \`${{ github.event.inputs.target_branch }}\`" >> $GITHUB_STEP_SUMMARY
+    echo "" >> $GITHUB_STEP_SUMMARY
+    echo "## ✅ Merged Pull Requests" >> $GITHUB_STEP_SUMMARY
+    echo "| PR | Title | Author | Branch | Merged Date | Issue Key |" >> $GITHUB_STEP_SUMMARY
+    echo "|----|-------|--------|--------|-------------|-----------|" >> $GITHUB_STEP_SUMMARY
+
+    echo '${{ steps.fetch_prs.outputs.pr_data }}' | jq -c '.[]' | while read pr; do
+      NUMBER=$(echo "$pr" | jq -r '.number')
+      TITLE=$(echo "$pr" | jq -r '.title' | sed 's/|/\\|/g')
+      USER=$(echo "$pr" | jq -r '.user')
+      MERGED=$(echo "$pr" | jq -r '.merged_at' | cut -d"T" -f1)
+      URL=$(echo "$pr" | jq -r '.html_url')
+      ISSUE=$(echo "$pr" | jq -r '.issue_key')
+      BRANCH="feature/#$NUMBER"  # default; update logic below if needed
+
+      # Optionally fetch branch info via GitHub API if necessary
+      BRANCH_INFO=$(gh pr view "$NUMBER" --json headRefName -q ".headRefName" || echo "")
+      if [ ! -z "$BRANCH_INFO" ]; then
+        BRANCH=$BRANCH_INFO
+      fi
+
+      echo "| [#$NUMBER]($URL) | $TITLE | @$USER | \`$BRANCH\` | $MERGED | $ISSUE |" >> $GITHUB_STEP_SUMMARY
+    done
