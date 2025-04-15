@@ -1,0 +1,76 @@
+name: Generate 4
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Select the target branch'
+        required: true
+        default: 'main'
+        type: string
+
+env:
+  TZ: America/Phoenix
+
+jobs:
+  generate-release-notes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.target_branch }}
+
+      - name: Set Report Date
+        id: datetime
+        run: echo "DATESTAMP=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch merged PRs
+        id: fetch_prs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = '${{ github.event.inputs.target_branch }}';
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              base: branch,
+              per_page: 100
+            });
+
+            const mergedPRs = prs
+              .filter(pr => pr.merged_at)
+              .map(pr => ({
+                number: pr.number,
+                title: pr.title,
+                user: pr.user.login,
+                merged_at: pr.merged_at,
+                html_url: pr.html_url,
+                head_ref: pr.head.ref,
+                issue_key: pr.title.match(/NCX-\d+/)?.[0] ?? ''
+              }));
+
+            core.setOutput("pr_data", JSON.stringify(mergedPRs));
+
+      - name: Show Release Notes in Summary
+        run: |
+          echo "# 📦 Release Notes - ${{ steps.datetime.outputs.DATESTAMP }}" >> $GITHUB_STEP_SUMMARY
+          echo "Target Branch: \`${{ github.event.inputs.target_branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Merged Pull Requests" >> $GITHUB_STEP_SUMMARY
+          echo "| PR | Title | Author | Source Branch | Merged Date | Issue Key |" >> $GITHUB_STEP_SUMMARY
+          echo "|----|-------|--------|---------------|-------------|-----------|" >> $GITHUB_STEP_SUMMARY
+
+          echo '${{ steps.fetch_prs.outputs.pr_data }}' | jq -c '.[]' | while read pr; do
+            NUMBER=$(echo "$pr" | jq -r '.number')
+            TITLE=$(echo "$pr" | jq -r '.title' | sed 's/|/\\|/g')
+            USER=$(echo "$pr" | jq -r '.user')
+            MERGED=$(echo "$pr" | jq -r '.merged_at' | cut -d"T" -f1)
+            URL=$(echo "$pr" | jq -r '.html_url')
+            ISSUE=$(echo "$pr" | jq -r '.issue_key')
+            BRANCH=$(echo "$pr" | jq -r '.head_ref')
+
+            echo "| [#$NUMBER]($URL) | $TITLE | @$USER | \`$BRANCH\` | $MERGED | $ISSUE |" >> $GITHUB_STEP_SUMMARY
+          done
