@@ -1,0 +1,80 @@
+name: Generate Excel Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Select the target branch'
+        required: true
+        default: 'main'
+        type: string
+
+env:
+  TZ: America/Phoenix
+
+jobs:
+  generate-excel:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.target_branch }}
+
+      - name: Set Report Date
+        id: datetime
+        run: echo "DATESTAMP=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch merged PRs
+        id: fetch_prs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = '${{ github.event.inputs.target_branch }}';
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              base: branch,
+              per_page: 100
+            });
+
+            const mergedPRs = prs
+              .filter(pr => pr.merged_at)
+              .map(pr => ({
+                number: pr.number,
+                title: pr.title,
+                user: pr.user.login,
+                merged_at: pr.merged_at.split("T")[0],
+                html_url: pr.html_url,
+                head_ref: pr.head.ref,
+                issue_key: pr.title.match(/NCX-\d+/)?.[0] ?? ''
+              }));
+
+            require('fs').writeFileSync('merged_prs.json', JSON.stringify(mergedPRs, null, 2));
+            core.setOutput("has_prs", mergedPRs.length > 0);
+      
+      - name: Install Excel package
+        run: npm install xlsx
+
+      - name: Generate Excel file
+        if: steps.fetch_prs.outputs.has_prs == 'true'
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          const XLSX = require('xlsx');
+
+          const prs = JSON.parse(fs.readFileSync('merged_prs.json', 'utf8'));
+          const worksheet = XLSX.utils.json_to_sheet(prs);
+          const workbook = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(workbook, worksheet, 'Merged PRs');
+
+          XLSX.writeFile(workbook, 'merged_prs.xlsx');
+          EOF
+
+      - name: Upload Excel Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: merged_prs_report
+          path: merged_prs.xlsx
